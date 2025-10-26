@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { PersonasClient } from '../../infrastructure/http/clients/PersonasClient';
+import { GetTeacherDashboardUseCase } from '../../application/use-cases/teachers/GetTeacherDashboardUseCase';
 
 export class TeachersController {
   private personasClient: PersonasClient;
+  private getTeacherDashboardUseCase: GetTeacherDashboardUseCase;
 
   constructor() {
     this.personasClient = new PersonasClient();
+    this.getTeacherDashboardUseCase = new GetTeacherDashboardUseCase();
   }
 
   getTeachers = async (req: Request, res: Response): Promise<void> => {
@@ -30,8 +33,11 @@ export class TeachersController {
   getTeacher = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const teacher = await this.personasClient.getTeacher(parseInt(id));
-      res.json(teacher);
+      const correlationId = req.header('x-correlation-id') || 'no-correlation-id';
+      
+      // Use aggregated use case for rich teacher dashboard
+      const teacherDashboard = await this.getTeacherDashboardUseCase.execute(parseInt(id), correlationId);
+      res.json(teacherDashboard);
     } catch (error: any) {
       res.status(error.statusCode || 500).json({
         code: error.code || 'internal_error',

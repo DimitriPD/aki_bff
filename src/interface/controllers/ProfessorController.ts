@@ -1,20 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { CreateEventUseCase } from '../../application/use-cases/professor/CreateEventUseCase';
 import { GetEventUseCase } from '../../application/use-cases/professor/GetEventUseCase';
-import { GetDashboardUseCase } from '../../application/use-cases/professor/GetDashboardUseCase';
+import { GetTeacherDashboardUseCase } from '../../application/use-cases/teachers/GetTeacherDashboardUseCase';
 import { ApiResponse } from '../../domain/dto';
 import { CoreClient } from '../../infrastructure/http/clients/CoreClient';
 
 export class ProfessorController {
   private createEventUseCase: CreateEventUseCase;
   private getEventUseCase: GetEventUseCase;
-  private getDashboardUseCase: GetDashboardUseCase;
+  private getDashboardUseCase: GetTeacherDashboardUseCase;
   private coreClient: CoreClient;
 
   constructor() {
     this.createEventUseCase = new CreateEventUseCase();
     this.getEventUseCase = new GetEventUseCase();
-    this.getDashboardUseCase = new GetDashboardUseCase();
+    this.getDashboardUseCase = new GetTeacherDashboardUseCase();
     this.coreClient = new CoreClient();
   }
 

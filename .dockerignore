@@ -4,9 +4,7 @@ dist
 .git
 .gitignore
 .env
-.env.*
 README.md
-docs/
 coverage/
 .vscode/
 .idea/

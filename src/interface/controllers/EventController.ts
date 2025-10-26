@@ -1,20 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { GetEventsUseCase } from '../../application/use-cases/events/GetEventsUseCase';
+import { GetEventDetailUseCase } from '../../application/use-cases/events/GetEventDetailUseCase';
 import { CreateEventUseCase } from '../../application/use-cases/professor/CreateEventUseCase';
-import { GetEventUseCase } from '../../application/use-cases/professor/GetEventUseCase';
 import { CoreClient } from '../../infrastructure/http/clients/CoreClient';
 import { ApiResponse } from '../../domain/dto';
 
 export class EventController {
   private getEventsUseCase: GetEventsUseCase;
+  private getEventDetailUseCase: GetEventDetailUseCase;
   private createEventUseCase: CreateEventUseCase;
-  private getEventUseCase: GetEventUseCase;
   private coreClient: CoreClient;
 
   constructor() {
     this.getEventsUseCase = new GetEventsUseCase();
+    this.getEventDetailUseCase = new GetEventDetailUseCase();
     this.createEventUseCase = new CreateEventUseCase();
-    this.getEventUseCase = new GetEventUseCase();
     this.coreClient = new CoreClient();
   }
 
@@ -66,11 +66,11 @@ export class EventController {
     try {
       const correlationId = req.header('x-correlation-id') as string;
       const { eventId } = req.params;
-      const result = await this.getEventUseCase.execute(eventId, correlationId);
+      const result = await this.getEventDetailUseCase.execute(eventId, correlationId);
 
       const response: ApiResponse<typeof result> = {
         data: result,
-        message: 'Event retrieved successfully',
+        message: 'Event details retrieved successfully',
       };
 
       res.status(200).json(response);

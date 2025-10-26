@@ -1,50 +1,82 @@
 openapi: 3.0.3
 info:
   title: AKI! - BFF (Backend For Frontend)
-  version: "1.2.0"
+  version: "2.0.0"
   description: |
     Backend-for-Frontend (BFF) for the AKI! system.
-    Purpose: orchestration and aggregation layer between the frontends (Professor UI, Student UI),
-    the microservices (Personas = SQL, Core = Mongo), and Azure Functions (F1 – Notifications, F3 – Password Recovery).
-    Implements Clean Architecture + SOLID + Vertical Slice.
     
-    Version 1.2.0 adds complete CRUD operations for Students, Teachers, and Classes from Personas microservice.
+    **Key Features:**
+    - **Data Aggregation:** Combines data from multiple microservices (Personas + Core) in single endpoints
+    - **Enriched Responses:** Returns complete data with names, statistics, and calculated metrics
+    - **Optimized for Frontend:** Each endpoint designed for specific UI screens
+    - **Reduced Latency:** Parallel backend calls minimize frontend round-trips
+    
+    **Architecture:**
+    - Personas Microservice (SQL Server): Students, Teachers, Classes
+    - Core Microservice (MongoDB): Events, Attendances, Occurrences
+    - Azure Functions: Notifications, Password Recovery
+    
+    **v2.0.0 Changes:**
+    - Endpoints now return aggregated data from multiple sources
+    - Statistics calculated on backend
+    - IDs enriched with names and related data
+    - Optimized for single-call UI loading
+    
   contact:
     name: AKI! Infra
     email: infra@aki.example
 
 servers:
   - url: http://localhost:4000/v1
-    description: Local Dev
-  - url: https://bff.api.aki.example/v1
-    description: Production
-  - url: https://staging-bff.api.aki.example/v1
-    description: Staging
+    description: Development Server
 
 security:
   - bearerAuth: []
 
 tags:
   - name: Auth
-    description: Password recovery and mock login (no authentication yet)
+    description: Authentication and password recovery
   - name: Teachers
-    description: Teacher endpoints (profile, classes, event management)
+    description: Aggregated teacher dashboard and profile (Personas + Core data)
   - name: Students
-    description: Student endpoints (QR scan)
-  - name: Personas - Students
-    description: Student CRUD operations (from Personas microservice)
-  - name: Personas - Teachers
-    description: Teacher CRUD operations (from Personas microservice)
-  - name: Personas - Classes
-    description: Class CRUD and membership operations (from Personas microservice)
+    description: Aggregated student profile with attendance history (Personas + Core data)
+  - name: Classes
+    description: Aggregated class details with members, events, and statistics
   - name: Events
-    description: Event lifecycle and QR generation
+    description: Aggregated event details with attendances and statistics
   - name: Attendances
-    description: Attendance operations (record/query)
+    description: Attendance operations and queries
   - name: Occurrences
-    description: Occurrence and alert aggregation
+    description: Occurrence tracking and notifications
+  - name: Scan
+    description: QR code scanning for attendance registration
+
+x-tagGroups:
+  - name: Main Aggregated Endpoints
+    tags:
+      - Teachers
+      - Students
+      - Classes
+      - Events
+      - Scan
+  - name: Other Operations
+    tags:
+      - Auth
+      - Attendances
+      - Occurrences
 
 paths:
+
+  # ==================== KEY AGGREGATED ENDPOINTS ====================
+  # The following endpoints are the core of this BFF:
+  # - GET /teachers/{teacherId}/classes - Complete teacher dashboard
+  # - GET /students/{studentId} - Complete student profile
+  # - GET /classes/{classId} - Complete class details
+  # - GET /events/{eventId} - Complete event with attendances
+  # - POST /scan - QR scan with enrichment
+  #
+  # Each reduces frontend calls from 4-6 to just 1 request.
+  # ================================================================
 
   /auth/login:
     post:
@@ -171,660 +203,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  # ==================== PERSONAS - STUDENTS ====================
-
-  /students:
-    get:
-      tags: [Personas - Students]
-      summary: List students (paginated)
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: size
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-        - name: q
-          in: query
-          schema:
-            type: string
-          description: Search by CPF or name
-      responses:
-        "200":
-          description: Paged list of students
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagedStudents'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    post:
-      tags: [Personas - Students]
-      summary: Create a new student
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [cpf, full_name]
-              properties:
-                cpf:
-                  type: string
-                  description: CPF (11 digits)
-                full_name:
-                  type: string
-      responses:
-        "201":
-          description: Student created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Student'
-        "409":
-          description: CPF already exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  /students/{id}:
-    get:
-      tags: [Personas - Students]
-      summary: Get student by ID
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Student found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Student'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    put:
-      tags: [Personas - Students]
-      summary: Update a student
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                full_name:
-                  type: string
-                device_id:
-                  type: string
-      responses:
-        "200":
-          description: Student updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Student'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    delete:
-      tags: [Personas - Students]
-      summary: Delete a student
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Student deleted
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  /students/device:
-    get:
-      tags: [Personas - Students]
-      summary: Get student by device ID
-      parameters:
-        - name: device_id
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Student with matching device found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Student'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    put:
-      tags: [Personas - Students]
-      summary: Bind device to student
-      parameters:
-        - name: studentId
-          in: query
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [device_id]
-              properties:
-                device_id:
-                  type: string
-      responses:
-        "200":
-          description: Device associated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Student'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  # ==================== PERSONAS - TEACHERS ====================
-
-  /teachers:
-    get:
-      tags: [Personas - Teachers]
-      summary: List teachers (paginated)
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: size
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-      responses:
-        "200":
-          description: Paged list of teachers
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagedTeachers'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    post:
-      tags: [Personas - Teachers]
-      summary: Create a new teacher
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [cpf, full_name, email]
-              properties:
-                cpf:
-                  type: string
-                full_name:
-                  type: string
-                email:
-                  type: string
-                password_hash:
-                  type: string
-                  description: Optional - if absent, triggers password setup email
-      responses:
-        "201":
-          description: Teacher created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Teacher'
-        "409":
-          description: CPF or email conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  /teachers/{id}:
-    get:
-      tags: [Personas - Teachers]
-      summary: Get teacher by ID
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Teacher found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Teacher'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    put:
-      tags: [Personas - Teachers]
-      summary: Update teacher
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                full_name:
-                  type: string
-                email:
-                  type: string
-                password_hash:
-                  type: string
-      responses:
-        "200":
-          description: Teacher updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Teacher'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    delete:
-      tags: [Personas - Teachers]
-      summary: Delete teacher
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Teacher deleted
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  /teachers/recover-password:
-    post:
-      tags: [Personas - Teachers]
-      summary: Send password recovery email to teacher
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [teacher_email]
-              properties:
-                teacher_email:
-                  type: string
-                  format: email
-      responses:
-        "200":
-          description: Recovery email sent
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  teacher_email:
-                    type: string
-                  sent_at:
-                    type: string
-                    format: date-time
-        "404":
-          description: Teacher not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  # ==================== PERSONAS - CLASSES ====================
-
-  /classes:
-    get:
-      tags: [Personas - Classes]
-      summary: List classes (paginated)
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: size
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-      responses:
-        "200":
-          description: Paged list of classes
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagedClasses'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    post:
-      tags: [Personas - Classes]
-      summary: Create class
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
-      responses:
-        "201":
-          description: Class created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Class'
-        "409":
-          description: Conflict (e.g. duplicate name)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  /classes/{id}:
-    get:
-      tags: [Personas - Classes]
-      summary: Get class by ID (with members)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Class details with members
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClassWithMembers'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    put:
-      tags: [Personas - Classes]
-      summary: Update class
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-      responses:
-        "200":
-          description: Class updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Class'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    delete:
-      tags: [Personas - Classes]
-      summary: Delete class
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Class deleted
-        "409":
-          description: Conflict (e.g., class has dependent events in Core)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  /classes/{id}/students:
-    get:
-      tags: [Personas - Classes]
-      summary: List students in a class
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Student list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Student'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-    post:
-      tags: [Personas - Classes]
-      summary: Add a student to a class
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [student_id]
-              properties:
-                student_id:
-                  type: integer
-      responses:
-        "201":
-          description: Student added to class
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClassWithMembers'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          description: Already linked
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  /classes/{id}/students/{studentId}:
-    delete:
-      tags: [Personas - Classes]
-      summary: Remove a student from class
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: studentId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Student removed
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  /classes/{id}/teachers/{teacherId}:
-    delete:
-      tags: [Personas - Classes]
-      summary: Remove teacher from class
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: teacherId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Teacher removed
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/InternalError'
-      security:
-        - bearerAuth: []
-
-  # ==================== EXISTING ENDPOINTS ====================
-
   /teachers/me:
     get:
       tags: [Teachers]
@@ -846,7 +224,16 @@ paths:
   /teachers/{teacherId}/classes:
     get:
       tags: [Teachers]
-      summary: Get teacher's classes
+      summary: Get teacher dashboard (AGGREGATED)
+      description: |
+        **Aggregated endpoint** that combines data from multiple sources:
+        - Teacher profile (Personas)
+        - Teacher's classes with student counts (Personas)
+        - Upcoming events (Core)
+        - Recent occurrences (Core)
+        - Statistics (calculated): total classes, events, attendances, occurrences
+        
+        This endpoint reduces frontend calls from 5+ to 1 single request.
       parameters:
         - name: teacherId
           in: path
@@ -855,13 +242,11 @@ paths:
             type: integer
       responses:
         "200":
-          description: Teacher's classes
+          description: Aggregated teacher dashboard data
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ClassSummary'
+                $ref: '#/components/schemas/TeacherDashboard'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -872,55 +257,6 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   /events:
-    get:
-      tags: [Events]
-      summary: List events (paginated)
-      description: List all events with optional filters
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: size
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-        - name: class_id
-          in: query
-          schema:
-            type: integer
-          description: Filter by class ID
-        - name: teacher_id
-          in: query
-          schema:
-            type: integer
-          description: Filter by teacher ID
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [active, closed, canceled]
-      responses:
-        "200":
-          description: Paged list of events
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagedEvents'
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "500":
-          description: Internal error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
     post:
       tags: [Events]
       summary: Create new event
@@ -952,7 +288,16 @@ paths:
   /events/{eventId}:
     get:
       tags: [Events]
-      summary: Get event details (aggregated)
+      summary: Get event details with attendances (AGGREGATED)
+      description: |
+        **Aggregated endpoint** that combines data from multiple sources:
+        - Event data (Core)
+        - Class and teacher names (Personas)
+        - Complete list of attendances with student names (Core + Personas)
+        - List of absent students (calculated)
+        - Statistics: attendance rate, on-time count, absent count
+        
+        This endpoint reduces frontend calls from 4+ to 1 single request.
       parameters:
         - name: eventId
           in: path
@@ -961,11 +306,11 @@ paths:
             type: string
       responses:
         "200":
-          description: Event details
+          description: Aggregated event details with attendances
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Event'
+                $ref: '#/components/schemas/EventDetail'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
@@ -1069,10 +414,17 @@ paths:
 
   /scan:
     post:
-      tags: [Students]
-      summary: Handle student QR scan
-      description: Forwards QR token and device info to Core MS for attendance registration.
-      security: []    # público (se apropriado)
+      tags: [Scan]
+      summary: QR code scan for attendance (AGGREGATED)
+      description: |
+        **Aggregated endpoint** that handles student attendance registration:
+        1. Looks up student in Personas by device_id or CPF
+        2. Auto-binds device if needed (best-effort)
+        3. Registers attendance in Core with validation
+        4. Returns enriched response with student name
+        
+        This endpoint aggregates Personas + Core data and provides a user-friendly response.
+      security: []    # public endpoint
       requestBody:
         required: true
         content:
@@ -1081,7 +433,7 @@ paths:
               $ref: '#/components/schemas/ScanRequest'
       responses:
         "201":
-          description: Attendance registered
+          description: Attendance registered successfully
           content:
             application/json:
               schema:
@@ -1097,37 +449,57 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /students/{studentId}:
+    get:
+      tags: [Students]
+      summary: Get student profile with attendance history (AGGREGATED)
+      description: |
+        **Aggregated endpoint** that combines data from multiple sources:
+        - Student information (Personas)
+        - Enrolled classes (Personas)
+        - Recent attendance history (Core)
+        - Statistics: total classes, attendances, attendance rate
+        
+        This endpoint reduces frontend calls from 4+ to 1 single request.
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Aggregated student profile with history and statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /attendances:
     get:
       tags: [Attendances]
-      summary: List attendances (paginated)
+      summary: Get attendances (by event or student)
       parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: size
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
         - name: event_id
           in: query
           schema:
             type: string
-          description: Filter by event ID
         - name: student_id
           in: query
+            # optional int
           schema:
             type: integer
-          description: Filter by student ID
       responses:
         "200":
-          description: Paged attendance list
+          description: Attendance list
           content:
             application/json:
               schema:
@@ -1141,108 +513,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /attendances/{attendanceId}:
-    get:
-      tags: [Attendances]
-      summary: Get attendance by ID
-      parameters:
-        - name: attendanceId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Attendance details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Attendance'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          description: Internal error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-    put:
-      tags: [Attendances]
-      summary: Update attendance
-      description: Update attendance status or add notes
-      parameters:
-        - name: attendanceId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [recorded, manual, retroactive, invalid]
-                note:
-                  type: string
-      responses:
-        "200":
-          description: Attendance updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Attendance'
-        "400":
-          $ref: '#/components/responses/BadRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          description: Internal error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
   /occurrences:
     get:
       tags: [Occurrences]
-      summary: List occurrences (paginated)
+      summary: Get occurrences and alerts
       description: Aggregates Core MS (Mongo) and Function 1 (Notification) data.
       parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: size
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
         - name: class_id
           in: query
           schema:
             type: integer
-          description: Filter by class ID
         - name: teacher_id
           in: query
           schema:
             type: integer
-          description: Filter by teacher ID
       responses:
         "200":
-          description: Paged occurrence list
+          description: Occurrence list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PagedOccurrences'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Occurrence'
         "400":
           $ref: '#/components/responses/BadRequest'
         "500":
@@ -1252,25 +545,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-    post:
-      tags: [Occurrences]
-      summary: Create new occurrence
-      description: Create manual or automatic occurrence
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OccurrenceCreateRequest'
+  /classes/{classId}:
+    get:
+      tags: [Classes]
+      summary: Get class details with events and statistics (AGGREGATED)
+      description: |
+        **Aggregated endpoint** that combines data from multiple sources:
+        - Class info with all members (Personas)
+        - Recent events (Core)
+        - Upcoming events (Core)
+        - Statistics: total students, teachers, events, average attendance rate
+        
+        This endpoint reduces frontend calls from 5+ to 1 single request.
+      parameters:
+        - name: classId
+          in: path
+          required: true
+          schema:
+            type: integer
       responses:
-        "201":
-          description: Occurrence created
+        "200":
+          description: Aggregated class details with members, events, and statistics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Occurrence'
-        "400":
-          $ref: '#/components/responses/BadRequest'
+                $ref: '#/components/schemas/ClassDetails'
+        "404":
+          $ref: '#/components/responses/NotFound'
         "500":
           description: Internal error
           content:
@@ -1300,12 +601,6 @@ components:
             $ref: '#/components/schemas/Error'
     Conflict:
       description: Conflict (e.g., overlapping event)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    InternalError:
-      description: Internal server error
       content:
         application/json:
           schema:
@@ -1345,107 +640,7 @@ components:
           type: string
         full_name:
           type: string
-        device_id:
-          type: string
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      required: [id, cpf, full_name]
-
-    Teacher:
-      type: object
-      properties:
-        id:
-          type: integer
-        cpf:
-          type: string
-        full_name:
-          type: string
-        email:
-          type: string
-        password_hash:
-          type: string
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      required: [id, cpf, full_name, email]
-
-    Class:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      required: [id, name]
-
-    PagedStudents:
-      type: object
-      properties:
-        meta:
-          type: object
-          properties:
-            page:
-              type: integer
-            size:
-              type: integer
-            total:
-              type: integer
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Student'
-      required: [meta, items]
-
-    PagedTeachers:
-      type: object
-      properties:
-        meta:
-          type: object
-          properties:
-            page:
-              type: integer
-            size:
-              type: integer
-            total:
-              type: integer
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Teacher'
-      required: [meta, items]
-
-    PagedClasses:
-      type: object
-      properties:
-        meta:
-          type: object
-          properties:
-            page:
-              type: integer
-            size:
-              type: integer
-            total:
-              type: integer
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Class'
-      required: [meta, items]
+      required: [id, full_name]
 
     ClassWithMembers:
       type: object
@@ -1454,12 +649,6 @@ components:
           type: integer
         name:
           type: string
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
         students:
           type: array
           items:
@@ -1467,7 +656,7 @@ components:
         teachers:
           type: array
           items:
-            $ref: '#/components/schemas/Teacher'
+            $ref: '#/components/schemas/TeacherProfile'
       required: [id, name, students, teachers]
 
     TeacherProfile:
@@ -1497,6 +686,287 @@ components:
           type: string
         student_count:
           type: integer
+
+    TeacherDashboard:
+      type: object
+      description: Aggregated teacher dashboard combining Personas and Core data
+      properties:
+        teacher:
+          type: object
+          properties:
+            id:
+              type: integer
+            full_name:
+              type: string
+            email:
+              type: string
+        classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassSummary'
+        upcoming_events:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              class_id:
+                type: integer
+              class_name:
+                type: string
+              start_time:
+                type: string
+                format: date-time
+              end_time:
+                type: string
+                format: date-time
+              status:
+                type: string
+              location:
+                $ref: '#/components/schemas/Location'
+        recent_occurrences:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              type:
+                type: string
+              class_id:
+                type: integer
+              student_cpf:
+                type: string
+              description:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+        stats:
+          type: object
+          properties:
+            total_classes:
+              type: integer
+            total_events:
+              type: integer
+            total_attendances:
+              type: integer
+            total_occurrences:
+              type: integer
+
+    ClassDetails:
+      type: object
+      description: Aggregated class details combining Personas and Core data
+      properties:
+        class:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+        students:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              cpf:
+                type: string
+              full_name:
+                type: string
+              device_id:
+                type: string
+                nullable: true
+        teachers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              full_name:
+                type: string
+              email:
+                type: string
+        recent_events:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              start_time:
+                type: string
+                format: date-time
+              end_time:
+                type: string
+                format: date-time
+              status:
+                type: string
+        upcoming_events:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              start_time:
+                type: string
+                format: date-time
+              end_time:
+                type: string
+                format: date-time
+              status:
+                type: string
+        stats:
+          type: object
+          properties:
+            total_students:
+              type: integer
+            total_teachers:
+              type: integer
+            total_events:
+              type: integer
+            average_attendance_rate:
+              type: integer
+              description: Percentage (0-100)
+
+    EventDetail:
+      type: object
+      description: Aggregated event details with attendances and statistics
+      properties:
+        event:
+          type: object
+          properties:
+            id:
+              type: string
+            class_id:
+              type: integer
+            class_name:
+              type: string
+            teacher_id:
+              type: integer
+            teacher_name:
+              type: string
+            start_time:
+              type: string
+              format: date-time
+            end_time:
+              type: string
+              format: date-time
+            location:
+              $ref: '#/components/schemas/Location'
+            status:
+              type: string
+            qr_token:
+              type: string
+        attendances:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              student_id:
+                type: integer
+              student_name:
+                type: string
+              student_cpf:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+              status:
+                type: string
+              within_radius:
+                type: boolean
+        absent_students:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              cpf:
+                type: string
+              full_name:
+                type: string
+        stats:
+          type: object
+          properties:
+            total_students:
+              type: integer
+            total_attendances:
+              type: integer
+            attendance_rate:
+              type: integer
+              description: Percentage (0-100)
+            on_time_attendances:
+              type: integer
+            absent_count:
+              type: integer
+
+    StudentProfile:
+      type: object
+      description: Aggregated student profile with classes and attendance history
+      properties:
+        student:
+          type: object
+          properties:
+            id:
+              type: integer
+            cpf:
+              type: string
+            full_name:
+              type: string
+            device_id:
+              type: string
+              nullable: true
+            created_at:
+              type: string
+              format: date-time
+        enrolled_classes:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+        recent_attendances:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              event_id:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+              status:
+                type: string
+        stats:
+          type: object
+          properties:
+            total_classes:
+              type: integer
+            total_attendances:
+              type: integer
+            attendance_rate:
+              type: integer
+              description: Percentage (0-100)
 
     EventCreateRequest:
       type: object
@@ -1621,77 +1091,11 @@ components:
                   type: string
                 prev:
                   type: string
-        data:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/Attendance'
-      required: [meta, data]
-
-    PagedEvents:
-      type: object
-      properties:
-        meta:
-          type: object
-          properties:
-            page:
-              type: integer
-            size:
-              type: integer
-            total:
-              type: integer
-            links:
-              type: object
-              properties:
-                next:
-                  type: string
-                prev:
-                  type: string
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Event'
-      required: [meta, data]
-
-    PagedOccurrences:
-      type: object
-      properties:
-        meta:
-          type: object
-          properties:
-            page:
-              type: integer
-            size:
-              type: integer
-            total:
-              type: integer
-            links:
-              type: object
-              properties:
-                next:
-                  type: string
-                prev:
-                  type: string
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Occurrence'
-      required: [meta, data]
-
-    OccurrenceCreateRequest:
-      type: object
-      required: [type, teacher_id, class_id]
-      properties:
-        type:
-          type: string
-          enum: [manual, automatic]
-        teacher_id:
-          type: integer
-        student_cpf:
-          type: string
-        class_id:
-          type: integer
-        description:
-          type: string
+      required: [meta, items]
 
     Occurrence:
       type: object

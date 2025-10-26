@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { PersonasClient } from '../../infrastructure/http/clients/PersonasClient';
+import { GetStudentProfileUseCase } from '../../application/use-cases/students/GetStudentProfileUseCase';
 
 export class StudentsController {
   private personasClient: PersonasClient;
+  private getStudentProfileUseCase: GetStudentProfileUseCase;
 
   constructor() {
     this.personasClient = new PersonasClient();
+    this.getStudentProfileUseCase = new GetStudentProfileUseCase();
   }
 
   getStudents = async (req: Request, res: Response): Promise<void> => {
@@ -31,8 +34,11 @@ export class StudentsController {
   getStudent = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const student = await this.personasClient.getStudent(parseInt(id));
-      res.json(student);
+      const correlationId = req.header('x-correlation-id') || 'no-correlation-id';
+      
+      // Use aggregated use case for rich student profile
+      const studentProfile = await this.getStudentProfileUseCase.execute(parseInt(id), correlationId);
+      res.json(studentProfile);
     } catch (error: any) {
       res.status(error.statusCode || 500).json({
         code: error.code || 'internal_error',

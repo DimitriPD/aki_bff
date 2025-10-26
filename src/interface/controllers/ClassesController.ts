@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { PersonasClient } from '../../infrastructure/http/clients/PersonasClient';
+import { GetClassDetailsUseCase } from '../../application/use-cases/classes/GetClassDetailsUseCase';
 
 export class ClassesController {
   private personasClient: PersonasClient;
+  private getClassDetailsUseCase: GetClassDetailsUseCase;
 
   constructor() {
     this.personasClient = new PersonasClient();
+    this.getClassDetailsUseCase = new GetClassDetailsUseCase();
   }
 
   getClasses = async (req: Request, res: Response): Promise<void> => {
@@ -30,8 +33,11 @@ export class ClassesController {
   getClass = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const classData = await this.personasClient.getClassWithMembers(parseInt(id));
-      res.json(classData);
+      const correlationId = req.header('x-correlation-id') || 'no-correlation-id';
+      
+      // Use aggregated use case for rich class details
+      const classDetails = await this.getClassDetailsUseCase.execute(parseInt(id), correlationId);
+      res.json(classDetails);
     } catch (error: any) {
       res.status(error.statusCode || 500).json({
         code: error.code || 'internal_error',

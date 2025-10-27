@@ -19,11 +19,6 @@ export interface ForgotPasswordRequestDTO {
   email: string;
 }
 
-export interface ResetPasswordRequestDTO {
-  token: string;
-  new_password: string;
-}
-
 // Event DTOs
 export interface CreateEventRequestDTO {
   class_id: number;

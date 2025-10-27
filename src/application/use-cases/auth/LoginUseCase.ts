@@ -39,18 +39,9 @@ export class LoginUseCase {
     }
 
     try {
-      // Real authentication flow
-      const teacher = await this.personasClient.getTeacherByEmail(data.email);
-
-      // TODO: Implement password verification
-      // For now, accepting any password (INSECURE - for development only)
-      if (!teacher.password_hash) {
-        throw new InvalidCredentialsError(
-          'Password not set for this account',
-          undefined,
-          correlationId,
-        );
-      }
+      // Real authentication flow using Personas /teachers/login endpoint
+      const response = await this.personasClient.loginTeacher(data.email, data.password);
+      const teacher = response.data;
 
       // Generate JWT token
       const token = jwt.sign(

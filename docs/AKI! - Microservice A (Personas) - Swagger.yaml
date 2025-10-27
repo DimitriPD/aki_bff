@@ -265,6 +265,50 @@ paths:
       security:
         - bearerAuth: []
 
+  /teachers/login:
+    post:
+      tags: [Teachers]
+      summary: Authenticate teacher by email and password
+      description: |
+        Authenticates a teacher using email and password. Returns teacher data if credentials are valid.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ email, password ]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Teacher'
+                  message:
+                    type: string
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /teachers/recover-password:
     post:
       tags: [Teachers]

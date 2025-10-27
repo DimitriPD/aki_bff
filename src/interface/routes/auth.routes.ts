@@ -24,15 +24,4 @@ router.post(
   authController.forgotPassword.bind(authController),
 );
 
-/**
- * @route POST /auth/reset-password
- * @desc Reset password using recovery token
- * @access Public
- */
-router.post(
-  '/reset-password',
-  validate(resetPasswordSchema),
-  authController.resetPassword.bind(authController),
-);
-
 export default router;

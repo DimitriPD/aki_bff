@@ -79,6 +79,13 @@ export class PersonasClient implements IPersonasClient {
 
   // ==================== TEACHERS ====================
 
+  async loginTeacher(email: string, password: string): Promise<{ data: Teacher; message: string }> {
+    return this.http.post<{ data: Teacher; message: string }>(
+      '/teachers/login',
+      { email, password }
+    );
+  }
+
   async getTeachers(params?: {
     page?: number;
     size?: number;

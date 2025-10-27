@@ -1,20 +1,20 @@
-import { FunctionPasswordClient } from '../../../infrastructure/http/clients';
+import { PersonasPasswordClient } from '../../../infrastructure/http/clients/PersonasPasswordClient';
 import { ForgotPasswordRequestDTO } from '../../../domain/dto';
 import logger from '../../../shared/logger';
 
 export class ForgotPasswordUseCase {
-  private functionPasswordClient: FunctionPasswordClient;
+  private personasPasswordClient: PersonasPasswordClient;
 
   constructor() {
-    this.functionPasswordClient = new FunctionPasswordClient();
+    this.personasPasswordClient = new PersonasPasswordClient();
   }
 
   async execute(data: ForgotPasswordRequestDTO, correlationId: string): Promise<{ status: string; message: string }> {
     logger.info('Password recovery requested', { email: data.email, correlationId });
 
     try {
-      // Forward to Azure Function 3 (Password Recovery)
-      await this.functionPasswordClient.sendForgotPasswordEmail(data.email);
+      // Forward to Personas microservice for password recovery
+      await this.personasPasswordClient.sendForgotPasswordEmail(data.email);
 
       logger.info('Password recovery email sent', { email: data.email, correlationId });
 

@@ -8,16 +8,7 @@ import path from 'path';
 import { config } from './infrastructure/config';
 import { errorHandler } from './shared/errors';
 import { correlationIdMiddleware, requestLogger } from './interface/middlewares';
-import authRoutes from './interface/routes/auth.routes';
-import studentRoutes from './interface/routes/student.routes';
-import professorRoutes from './interface/routes/professor.routes';
-import attendanceRoutes from './interface/routes/attendance.routes';
-import eventRoutes from './interface/routes/event.routes';
-import occurrenceRoutes from './interface/routes/occurrence.routes';
-import scanRoutes from './interface/routes/scan.routes';
-import studentsRoutes from './interface/routes/students.routes';
-import teachersRoutes from './interface/routes/teachers.routes';
-import classesRoutes from './interface/routes/classes.routes';
+import { buildFeatureRouter } from './features/router';
 import logger from './shared/logger';
 
 // Load environment variables
@@ -87,24 +78,9 @@ class App {
       logger.error('Failed to load Swagger documentation', { error });
     }
 
-    // API v1 routes
+    // API v1 routes (vertical slice)
     const apiV1 = express.Router();
-
-    apiV1.use('/auth', authRoutes);
-    apiV1.use('/student', studentRoutes);
-    apiV1.use('/professor', professorRoutes);
-    apiV1.use('/attendances', attendanceRoutes);
-    apiV1.use('/events', eventRoutes);
-    apiV1.use('/occurrences', occurrenceRoutes);
-    
-    // Personas endpoints
-    apiV1.use('/students', studentsRoutes);
-    apiV1.use('/teachers', teachersRoutes);
-    apiV1.use('/classes', classesRoutes);
-    
-    // Public scan endpoint (no authentication)
-    apiV1.use('/scan', scanRoutes);
-
+    apiV1.use('/', buildFeatureRouter());
     this.app.use('/v1', apiV1);
 
     // 404 handler
@@ -123,20 +99,17 @@ class App {
 
   public listen(): void {
     const port = config.port;
-
     this.app.listen(port, () => {
       logger.info(`🚀 BFF Server running on port ${port}`, {
         environment: config.nodeEnv,
         port,
       });
-
       logger.info('📡 Connected services:', {
         personas: config.services.personas.baseUrl,
         core: config.services.core.baseUrl,
         functionPassword: config.services.functionPassword.baseUrl,
         functionNotification: config.services.functionNotification.baseUrl,
       });
-
       logger.info('🔐 Authentication mode:', {
         mockEnabled: config.mock.authEnabled,
       });

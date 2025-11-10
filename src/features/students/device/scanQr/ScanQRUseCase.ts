@@ -1,0 +1,11 @@
+import { PersonasClient } from '../../../_shared/personas/PersonasClient';
+import { CoreClient } from '../../../_shared/core/CoreClient';
+import { ScanQRRequestDTO, ScanQRResponseDTO } from '../../_types';
+import logger from '../../../../shared/logger';
+export class ScanQRUseCase { private personasClient = new PersonasClient(); private coreClient = new CoreClient(); async execute(data: ScanQRRequestDTO, correlationId: string): Promise<ScanQRResponseDTO> { logger.info('QR scan initiated', { deviceId: data.device_id, correlationId }); try { let student: any = null; let studentName = 'Student'; try { student = await this.personasClient.getStudentByDevice(data.device_id); studentName = student.full_name; } catch (error: any) { if (error.statusCode === 404 && data.student_cpf) { try { student = await this.personasClient.getStudentByCPF(data.student_cpf); studentName = student.full_name; try { await this.personasClient.bindDevice(student.id, data.device_id); logger.info('Device auto-bound during scan', { studentId: student.id, correlationId }); } catch (bindError: any) { logger.warn('Could not bind device, but continuing', { error: bindError.message }); } } catch { logger.info('Student not found in Personas, Core will validate', { cpf: data.student_cpf, correlationId }); } } }
+      const attendance = await this.coreClient.createAttendance({ qr_token: data.qr_token, device_id: data.device_id, student_cpf: data.student_cpf, location: data.location });
+      logger.info('Attendance registered successfully', { attendanceId: attendance.id, studentId: attendance.student_id, correlationId });
+      const withinRadius = attendance.validation?.within_radius ?? true;
+      const statusMessage = withinRadius ? 'Attendance registered successfully!' : 'Attendance registered, but you are outside the expected location radius.';
+      return { status: 'success', message: statusMessage, attendance: { id: attendance.id, event_id: attendance.event_id, student_name: studentName, timestamp: attendance.timestamp, within_radius: withinRadius } }; }
+    catch (error: any) { logger.error('QR scan failed', { error: error.message, deviceId: data.device_id, correlationId }); return { status: 'error', message: error.message || 'Failed to register attendance. Please try again.' }; } } }
